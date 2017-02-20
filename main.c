@@ -54,11 +54,12 @@ int main(int argc,char *argv[])
 
   // Main execution loop
   while(clk.instr <= maxinstr) {
-    clearsig();
     for(clk.icycle = FETCH; clk.icycle <= MEM; clk.icycle++) {
+      clearsig();
+      ushort temp = readram(sysreg[MAR]);
       for(clk.phase=clk_FE; clk.phase<= clk_RE; clk.phase++){
         printf("------------------------------------------------------\n");
-        printf("cycle: %d.%d, phase: %d, PC: %x, MAR: %x\n", clk.instr, clk.icycle, clk.phase, regfile[PC], sysreg[MAR]);
+        printf("cycle: %d.%d, phase: %d, PC: %x, MAR: %x(%x)\n", clk.instr, clk.icycle, clk.phase, regfile[PC], sysreg[MAR], temp);
 
         // signal generation phase
         sigupd=1;
@@ -78,19 +79,22 @@ int main(int argc,char *argv[])
           case DECODE:
             decodesigs();
             ALU();
+            break;
           case EXECUTE:
-            //execsigs();
+            execsigs();
+            ALU();
             break;
           case MEM:
             memsigs();
+            ALU();
             break;
           }
           resolvemux();
           printf("\n");
         }
         printf("Stable after %d vcycles.\n", vcycle);
-        printf("regfile: r1:%s, r2:%s, w:%s\n", REGFILE_STR[regsel[REGR0S]], REGFILE_STR[regsel[REGR1S]],REGFILE_STR[regsel[REGWS]]);
-        printf("ALU: 0:%s(%d) 1:%s(%d) func:%s out:%d\n", BSIG_STR[bussel[OP0S]], bsig[OP0], BSIG_STR[bussel[OP1S]], bsig[OP1], ALUopc, bsig[ALUout]);
+        printf("regfile: r0:%s, r1:%s, w:%s\n", REGFILE_STR[regsel[REGR0S]], REGFILE_STR[regsel[REGR1S]],REGFILE_STR[regsel[REGWS]]);
+        printf("ALU: 0:%s(%x) 1:%s(%x) func:%s out:%x\n", BSIG_STR[bussel[OP0S]], bsig[OP0], BSIG_STR[bussel[OP1S]], bsig[OP1], ALUopc, bsig[ALUout]);
       // Latch pass - single pass!
       latch(clk.phase);
       }
@@ -98,11 +102,15 @@ int main(int argc,char *argv[])
     clk.instr++;
   }
 
-  // Dump lower part of RAM
+  // Dump lower part of RAM and regs
   printf("----------------------------RAM-----------------------------\n");
   int i;
   for(i=0; i<11; i++){
     printf("0x%03x: %04x\n", i, ram[i]);
+  }
+  printf("----------------------------REGISTERS-----------------------\n");
+  for(i=0; i<7; i++){
+    printf("R%d: %04x\n", i, regfile[i]);
   }
 }
 
@@ -112,9 +120,10 @@ init(void) {
   bsig[PC] = 0;
 
   // initialize RAM with first program
-  ram[0]=0xA011;
-  ram[1]=0xA01a;
-  //ram[2]=0xc653;
+  //ram[0]=0xA011;
+  ram[0]=0xA322; // ldi 100, RB
+  ram[1]=0x294; // ldw 10(RA), RD
+  ram[110]=0xdead;
   //ram[3]=0x4283;
   //ram[4]=0x284;
   //ram[5]=0xE451;
@@ -165,7 +174,6 @@ decodesigs() {
 
   memcpy(opc3_b, instr_b+4, 2);
   opc3 = bin2_to_dec(opc3_b);
-
 
   memcpy(opc4_b, instr_b+4, 3);
   opc4 = bin3_to_dec(opc4_b);
@@ -225,6 +233,11 @@ decodesigs() {
   // Set op0 and op1 mux and bus (combinational, not latched)
   //printf("OPC1: %d", opc1);
   switch(opc1) {
+  case 0:
+    // ldw sw7(base), tgt
+    update_bussel(MDRS, IRimm);
+    update_csig(MDR_LOAD, HI);
+    break;
   case 5:
     // ldi s10, tgt
     // defaults: op1(REG0), f(add)
@@ -233,69 +246,7 @@ decodesigs() {
     update_bussel(OP0S, MDRout);
     break;
   }
-  // case 0:
-//     update_opsel(2, MDR); // 7bit immediate
-//     update_opsel(3, arg1);
-//     update_opsel(0, MDR);
-//     update_opsel(1, REG0);
-//     update_csig(MAR_SEL, HI);
-//     update_csig(MAR_LOAD, HI);
-//     update_csig(MDR_LOAD, HI);
-//     update_csig(MDR_SEL, HI);
-//     update_rfsel(dest);
-//     update_csig(RF_LOAD, HI);
-//     break;
-//   case 1:
-//   case 2:
-//     update_opsel(2, MDR); // 7bit immediate
-//     update_opsel(3, arg1);
-//     update_opsel(0, dest);
-//     update_opsel(1, REG0);
-//     update_csig(MAR_SEL, HI);
-//     update_csig(MAR_LOAD, HI);
-//     update_csig(MDR_LOAD, HI);
-//     update_csig(RAM_LOAD, HI);
-//     break;
-//   case 3:
-//     break;
-//   case 4:
-//     update_opsel(0, MDR);
-//     update_opsel(1, REG0);
-//     update_rfsel(dest);
-//     update_csig(RF_LOAD, HI);
-//     break;
-//   case 5:
-//     update_opsel(0, MDR);
-//     update_opsel(1, REG0);
-//     update_csig(PC_LOAD, HI);
-//     // op_sel: MDR, RF, MAR, FLAGS
-//     break;
-//   case 6:
-//     if(ir == 1) {
-//       update_opsel(0, MDR);
-//     } else {
-//       //printf("IR IS ZERO!!");
-//       update_opsel(0, arg0);
-//     }
-//     update_opsel(1, arg1);
-//     update_rfsel(dest);
-//     update_csig(MDR_SEL, HI);
-//     update_csig(RF_LOAD, HI);
-//     break;
-//   }
-//if (opc1 == 7 && opc2 == 0) {
-  //   switch(opc3) {
-  //     case 1:
-  //       // skip.c
-  //       update_opsel(0, arg0);
-  //       update_opsel(1, arg1);
-  //       strcpy(ALUfunc, "101"); // subtract
-  //       skipcond = 1;
-  //       break;
-  //   }
-  // }
-//
-//
+
   // REGWS always points to tgt?
   update_regsel(REGWS, tgt);
 
@@ -320,10 +271,39 @@ decodesigs() {
  //    }
  // }
 
+void execsigs(void) {
+  // Set op0 and op1 mux and bus (combinational, not latched)
+  //printf("OPC1: %d", opc1);
+  switch(opc1) {
+  case 0:
+    update_regsel(REGR0S, arg1);
+    update_bussel(OP0S, MDRout);
+    update_bussel(OP1S, REGR0);
+    update_csig(MAR_LOAD, HI);
+    // latched on RE:
+    update_bussel(MDRS, RAM);
+    update_csig(MDR_LOAD, HI);
+    break;
+  }
+}
+
+
 void
 memsigs() {
   // Set the "destination muxes"; destination is always a reg (?)
   update_regsel(REGWS, tgt);
+
+  switch(opc1) {
+  case 0:
+    update_bussel(OP1S, MDRout);
+    update_csig(REG_LOAD, HI);
+    break;
+  case 5:
+    // ldi s10, tgt
+    // defaults: op1(REG0), f(add)
+    update_bussel(OP0S, MDRout);
+    break;
+  }
 }
 
 void resolvemux(void) {
@@ -334,18 +314,31 @@ void resolvemux(void) {
   update_bsig(OP1, &bsig[bussel[OP1S]]);
   update_bsig(MDRin, &bsig[bussel[MDRS]]);
   update_bsig(MDRout, &sysreg[MDR]);  // programming crutch: MDRout == MDR
+
+  ushort temp = readram(sysreg[MAR]);
+  update_bsig(RAM, &temp);
 }
 
 void
 latch(enum phase clk_phase) {
 
+  if(clk_phase == clk_FE) {
+    if(csig[MAR_LOAD]==HI) {
+      sysreg[MAR] = bsig[ALUout];
+      printf("MAR <- %x\n", sysreg[MAR]);
+    }
+  }
+
+  if(clk_phase == clk_RE) {
+    if(csig[MDR_LOAD]==HI) {
+      sysreg[MDR] = bsig[MDRin];
+      printf("MDR <- %x\n", sysreg[MDR]);
+    }
+  }
+
   switch(clk.icycle) {
   case FETCH:
     if(clk_phase == clk_FE) {
-      if(csig[MAR_LOAD]==HI) {
-        sysreg[MAR] = bsig[ALUout];
-        printf("MAR <- %x\n", sysreg[MAR]);
-      }
     }
 
     if(clk_phase == clk_RE) {
@@ -355,12 +348,7 @@ latch(enum phase clk_phase) {
     }
     break;
   case DECODE:
-    if(clk_phase == clk_FE) {
-      if(csig[MDR_LOAD]==HI) {
-        sysreg[MDR] = bsig[MDRin];
-        printf("MDR <- %x\n", sysreg[MDR]);
-      }
-    }
+
     break;
   case MEM:
     if(clk_phase == clk_RE) {
@@ -469,52 +457,10 @@ void update_regsel(enum regsel signame, ushort value) {
   if (regsel[signame] != value) {
     sigupd = 1;
     printf("%s(%s) ", REGSEL_STR[signame], REGFILE_STR[value]);
-    //if (signame == AIN)
-      //printf("v: %x", *value);
   }
   regsel[signame] = value;
 }
-//
-// int update_opsel(int opnr, int value) {
-//   //printf("signame: %d", signame);
-//   int *org;
-//   switch(opnr){
-//     case 0:
-//     org = &op0_sel;
-//     break;
-//     case 1:
-//     org = &op1_sel;
-//     break;
-//     case 2:
-//     org = &op2_sel;
-//     break;
-//     case 3:
-//     org = &op3_sel;
-//     break;
-//   }
-//   if (*org != value) {
-//     updated = 1;
-//     printf("op%d (%s), ", opnr, BSIG_STRING[value]);
-//     //if (signame == AIN)
-//       //printf("v: %x", *value);
-//   }
-//   *org = value;
-// }
-//
-// int update_rfsel(int value) {
-//   if (rf_sel != value) {
-//     updated = 1;
-//     printf("rf_sel (%d), ", value);
-//   }
-//   rf_sel = value;
-// }
-//
-//
-// ushort readrom(ushort addr) {
-//   //printf("Reading ROM at address: %x\n", addr);
-//   return rom[addr];
-// }
-//
+
 ushort readram(ushort addr) {
   //printf("Reading RAM at address: %x\n", addr);
   return ram[addr];
@@ -534,7 +480,6 @@ void writeregfile(void) {
 void
 clearsig(){
   memset(csig, 0, sizeof(csig));
-  memset(bsig, 0, sizeof(bsig));
   memset(bussel, 0, sizeof(bussel));
   memset(regsel, 0, sizeof(regsel));
   ALUfunc = 0;

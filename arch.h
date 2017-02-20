@@ -19,7 +19,7 @@ enum signalstate { ZZ, RE, HI, FE, LO };
        X(MAR_LOAD  ) \
        X(IR_LOAD   ) \
        X(MDR_LOAD ) \
-       X(RF_LOAD  ) \
+       X(REG_LOAD  ) \
        X(RAM_LOAD  ) \
        X(SKIP   )
 
@@ -59,6 +59,7 @@ enum signalstate { ZZ, RE, HI, FE, LO };
       X(MDRin   ) \
       X(MARin   ) \
       X(ALUout   ) \
+         X(RAM) \
       X(MDRout   )  // programming crutch always equals SYSREG[MDR]
 
 enum flags { ZR, NG};
