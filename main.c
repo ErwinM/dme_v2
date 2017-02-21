@@ -56,8 +56,8 @@ int main(int argc,char *argv[])
   while(clk.instr <= maxinstr) {
     for(clk.icycle = FETCH; clk.icycle <= EXECUTE; clk.icycle++) {
       clearsig();
-      ushort temp = readram(sysreg[MAR]);
       for(clk.phase=clk_FE; clk.phase<= clk_RE; clk.phase++){
+        ushort temp = readram(sysreg[MAR]);
         printf("------------------------------------------------------\n");
         printf("cycle: %d.%d, phase: %d, PC: %x, MAR: %x(%x)\n", clk.instr, clk.icycle, clk.phase, regfile[PC], sysreg[MAR], temp);
 
@@ -122,9 +122,9 @@ init(void) {
   // initialize RAM with first program
   //ram[0]=0xA011;
   ram[0]=0xA322; // ldi 100, RB
-  ram[1]=0x294; // ldw 10(RA), RD
+  ram[1]=0x1294; // ldw -10(RA), RD
   ram[2]=0xc3d5; // add 7, RB, RE
-  ram[110]=0xdead;
+  ram[90]=0xdead;
   //ram[3]=0x4283;
   //ram[4]=0x284;
   //ram[5]=0xE451;
