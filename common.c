@@ -1,6 +1,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <math.h>
+#include <string.h>
 
 
 int getbit16(char *bitstring, int bitnr){
@@ -59,6 +61,7 @@ int bin3_to_dec(char *bin) {
     result += 1;
   return result;
 }
+
 int bin7_to_dec(char *bin) {
   int result;
 
@@ -79,6 +82,46 @@ int bin7_to_dec(char *bin) {
     result += 1;
   return result;
 }
+
+int bin2dec(char *bin) {
+  int result;
+  int len, i, c;
+  char *p;
+
+  result=0;
+  i=0;
+  len = strlen(bin) - 1;
+  for(c=len;c>=0;c--) {
+    if(bin[c] == '1') {
+      result +=pow(2,i);
+    }
+    i++;
+  }
+  printf("bin2dec: %s(%d)\n", bin, result);
+  return result;
+}
+
+int sbin2dec(char *bin) {
+  int result;
+  int len, i, c;
+  char *p;
+
+  result=0;
+  i=0;
+  len = strlen(bin) - 1;
+  for(c=len;c>=1;c--) {
+    if(bin[c] == '1') {
+      result +=pow(2,i);
+    }
+    i++;
+  }
+  if(bin[0]=='1')
+    result = -result;
+  printf("bin2dec: %s(%d)\n", bin, result);
+  return result;
+}
+
+
 int bin10_to_dec(char *bin) {
   int result;
 

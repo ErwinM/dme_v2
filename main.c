@@ -26,7 +26,7 @@ ushort bussel[10] = {0};
 
 
 
-int maxinstr = 1;
+int maxinstr = 2;
 int sigupd;
 char ALUopc[4];
 
@@ -54,7 +54,7 @@ int main(int argc,char *argv[])
 
   // Main execution loop
   while(clk.instr <= maxinstr) {
-    for(clk.icycle = FETCH; clk.icycle <= MEM; clk.icycle++) {
+    for(clk.icycle = FETCH; clk.icycle <= EXECUTE; clk.icycle++) {
       clearsig();
       ushort temp = readram(sysreg[MAR]);
       for(clk.phase=clk_FE; clk.phase<= clk_RE; clk.phase++){
@@ -80,12 +80,12 @@ int main(int argc,char *argv[])
             decodesigs();
             ALU();
             break;
-          case EXECUTE:
-            execsigs();
+          case READ:
+            readsigs();
             ALU();
             break;
-          case MEM:
-            memsigs();
+          case EXECUTE:
+            execsigs();
             ALU();
             break;
           }
@@ -123,6 +123,7 @@ init(void) {
   //ram[0]=0xA011;
   ram[0]=0xA322; // ldi 100, RB
   ram[1]=0x294; // ldw 10(RA), RD
+  ram[2]=0xc3d5; // add 7, RB, RE
   ram[110]=0xdead;
   //ram[3]=0x4283;
   //ram[4]=0x284;
@@ -180,7 +181,7 @@ decodesigs() {
 
   // parse arguments - immediates
   memcpy(imm7_b, instr_b+3, 7);
-  imm7= bin7_to_dec(imm7_b);
+  imm7= sbin2dec(imm7_b);
 
   memcpy(imm10_b, instr_b+3, 10);
   imm10 = bin10_to_dec(imm10_b);
@@ -245,15 +246,22 @@ decodesigs() {
     update_csig(MDR_LOAD, HI);
     update_bussel(OP0S, MDRout);
     break;
+  case 6:
+    switch(opc2) {
+    case 0 ... 5:
+      if(ir==1) {
+        // arg1 is an imm
+        update_bussel(MDRS, IRimm);
+        update_csig(MDR_LOAD, HI);
+      }
+      break;
+    }
+    break;
   }
 
   // REGWS always points to tgt?
   update_regsel(REGWS, tgt);
 
-  if(opc1 < 6) {
-    strcpy(ALUopc, "000");
-  }
-  ALUfunc = bin3_to_dec(ALUopc);
 }
   // // Condition testing
  //  // 000 EQ, 001 NEQ
@@ -271,7 +279,7 @@ decodesigs() {
  //    }
  // }
 
-void execsigs(void) {
+void readsigs(void) {
   // Set op0 and op1 mux and bus (combinational, not latched)
   //printf("OPC1: %d", opc1);
   switch(opc1) {
@@ -289,7 +297,7 @@ void execsigs(void) {
 
 
 void
-memsigs() {
+execsigs() {
   // Set the "destination muxes"; destination is always a reg (?)
   update_regsel(REGWS, tgt);
 
@@ -302,6 +310,23 @@ memsigs() {
     // ldi s10, tgt
     // defaults: op1(REG0), f(add)
     update_bussel(OP0S, MDRout);
+    update_csig(REG_LOAD, HI);
+    break;
+  case 6:
+    switch(opc2) {
+    case 0 ... 5:
+      if(ir==1) {
+        // arg1 is an imm
+        update_bussel(OP0S, MDRout);
+      } else {
+        update_bussel(OP0S, REGR0);
+        update_regsel(REGR0S, arg0);
+      }
+      update_bussel(OP1S, REGR1);
+      update_regsel(REGR1S, arg1);
+      update_csig(REG_LOAD, HI);
+      break;
+    }
     break;
   }
 }
@@ -322,6 +347,15 @@ void resolvemux(void) {
 void
 latch(enum phase clk_phase) {
 
+
+  // TO DO GET RID OF THIS TOO
+  if(clk.icycle == FETCH && clk_phase == clk_RE) {
+    sysreg[IR] = readram(sysreg[MAR]);
+    printf("IR <- %x\n", readram(sysreg[MAR]));
+    regfile[PC]++; // PC acts as counter
+  }
+
+  // FALLING EDGE LATCHES
   if(clk_phase == clk_FE) {
     if(csig[MAR_LOAD]==HI) {
       sysreg[MAR] = bsig[ALUout];
@@ -329,32 +363,15 @@ latch(enum phase clk_phase) {
     }
   }
 
+  // RISING EDGE LATCHES
   if(clk_phase == clk_RE) {
     if(csig[MDR_LOAD]==HI) {
       sysreg[MDR] = bsig[MDRin];
       printf("MDR <- %x\n", sysreg[MDR]);
     }
-  }
-
-  switch(clk.icycle) {
-  case FETCH:
-    if(clk_phase == clk_FE) {
-    }
-
-    if(clk_phase == clk_RE) {
-      sysreg[IR] = readram(sysreg[MAR]);
-      printf("IR <- %x\n", readram(sysreg[MAR]));
-      regfile[PC]++; // PC acts as counter
-    }
-    break;
-  case DECODE:
-
-    break;
-  case MEM:
-    if(clk_phase == clk_RE) {
+    if(csig[REG_LOAD]==HI) {
       writeregfile();
     }
-    break;
   }
 }
   // FETCH
@@ -501,7 +518,3 @@ clearsig(){
 //     //close(stdoutBackupFd);
 //   }
 // }
-
-ushort readrfile(int port, int reg) {
-
-}

@@ -5,6 +5,7 @@
 
 enum signalstate { ZZ, RE, HI, FE, LO };
 
+
 #define PHASE \
       X(clk_FE) \
       X(clk_RE)
@@ -12,8 +13,8 @@ enum signalstate { ZZ, RE, HI, FE, LO };
 #define ICYCLE \
       X(FETCH) \
       X(DECODE) \
-      X(EXECUTE) \
-      X(MEM)
+      X(READ) \
+      X(EXECUTE)
 
 #define CSIGS \
        X(MAR_LOAD  ) \
@@ -31,7 +32,8 @@ enum signalstate { ZZ, RE, HI, FE, LO };
       X(REGD  ) \
       X(REGE  ) \
       X(SP  ) \
-      X(PC  )
+      X(PC  ) \
+      X(FLAGS)
 
 #define SYSREG \
       X(MAR) \
