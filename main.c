@@ -26,7 +26,8 @@ ushort bussel[10] = {0};
 
 
 
-int maxinstr = 2;
+
+int maxinstr = 10;
 int sigupd;
 char ALUopc[4];
 
@@ -40,10 +41,10 @@ ushort imm10;
 ushort imm13;
 ushort imm3;
 ushort arg0;
+ushort arg0imm;
 ushort arg1;
 ushort ir;
 ushort ALUresult;
-ushort ALUfunc;
 ushort tgt;
 
 
@@ -101,7 +102,10 @@ int main(int argc,char *argv[])
     }
     clk.instr++;
   }
+  dump();
+}
 
+void dump() {
   // Dump lower part of RAM and regs
   printf("----------------------------RAM-----------------------------\n");
   int i;
@@ -121,14 +125,25 @@ init(void) {
 
   // initialize RAM with first program
   //ram[0]=0xA011;
-  ram[0]=0xA322; // ldi 100, RB
-  ram[1]=0x1294; // ldw -10(RA), RD
-  ram[2]=0xc3d5; // add 7, RB, RE
-  ram[90]=0xdead;
+  // ram[0]=0xA322; // ldi 100, RB
+//   ram[1]=0x1D94; // ldw -10(RA), RD
+//   ram[2]=0xc3d5; // add 7, RB, RE
+//   //ram[3]=0x8003; // br 4 (jump to 7)
+//   ram[3]=0xa021; // ldi 4, RA
+//   ram[4]=0xd0ac; // skip.c RB, RE, SGT
+//   ram[90]=0xdead;
   //ram[3]=0x4283;
   //ram[4]=0x284;
   //ram[5]=0xE451;
 
+  ram[0] = 0xa081;
+  ram[1] = 0xa052;
+  ram[2] = 0xd054;
+  ram[3] = 0x8002;
+  ram[4] = 0xc00b;
+  ram[5] = 0x0;
+  ram[6] = 0xc013;
+  ram[7] = 0x0;
   printf("Init done..\n");
 }
 
@@ -146,9 +161,9 @@ decodesigs() {
 
   char *instr_b;
   char opc1_b[3];
-  char opc2_b;
-  char opc3_b[2];
-  char opc4_b[3];
+  char opc2_b[3];
+  //char opc3_b[2];
+  //char opc4_b[3];
   char imm7_b[7];
   char imm10_b[10];
   char imm13_b[13];
@@ -165,29 +180,24 @@ decodesigs() {
   instr_b = decimal_to_binary16(sysreg[IR]);
   printf("(%s), ", instr_b);
 
-  memcpy(ALUopc, instr_b+3, 3);
-
   memcpy(opc1_b, instr_b, 3);
   opc1 = bin3_to_dec(opc1_b);
 
-  opc2_b = instr_b[3];
-  opc2 = opc2_b - '0';
+  memcpy(opc2_b, instr_b+3, 3);
+  opc2 = bin2dec(opc2_b, 3);
 
-  memcpy(opc3_b, instr_b+4, 2);
-  opc3 = bin2_to_dec(opc3_b);
-
-  memcpy(opc4_b, instr_b+4, 3);
-  opc4 = bin3_to_dec(opc4_b);
+  //memcpy(opc4_b, instr_b+4, 3);
+  //opc4 = bin3_to_dec(opc4_b);
 
   // parse arguments - immediates
   memcpy(imm7_b, instr_b+3, 7);
-  imm7= sbin2dec(imm7_b);
+  imm7= sbin2dec(imm7_b, 7);
 
   memcpy(imm10_b, instr_b+3, 10);
-  imm10 = bin10_to_dec(imm10_b);
+  imm10 = sbin2dec(imm10_b, 10);
 
   memcpy(imm13_b, instr_b+3, 13);
-  imm13 = bin13_to_dec(imm13_b);
+  imm13 = sbin2dec(imm13_b, 13);
   //printf("imm2: %s", imm2_b);
 
   memcpy(imm3_b, instr_b+7, 3);
@@ -197,8 +207,12 @@ decodesigs() {
   memcpy(arg0_b, instr_b+7, 3);
   arg0 = bin3_to_dec(arg0_b);
 
+  // this imm has a bespoke encoding
+  arg0imm = immtable[arg0];
+
   memcpy(arg1_b, instr_b+10, 3);
   arg1 = bin3_to_dec(arg1_b);
+  printf(">>%s<<", arg1_b);
 
   memcpy(dest_b, instr_b+13, 3);
   tgt = bin3_to_dec(dest_b);
@@ -223,7 +237,12 @@ decodesigs() {
       update_bsig(IRimm, &imm10);
       break;
     case 6:
-      update_bsig(IRimm, &imm3);
+      if(ir) {
+        update_bsig(IRimm, &arg0imm);
+        //printf("IRimm: %d, IRmmtable: %d", arg0, arg0imm);
+      } else {
+        update_bsig(IRimm, &imm3);
+      }
       break;
     case 7:
       if(opc3 == 1) {
@@ -236,6 +255,10 @@ decodesigs() {
   switch(opc1) {
   case 0:
     // ldw sw7(base), tgt
+    update_bussel(MDRS, IRimm);
+    update_csig(MDR_LOAD, HI);
+    break;
+  case 4:
     update_bussel(MDRS, IRimm);
     update_csig(MDR_LOAD, HI);
     break;
@@ -299,11 +322,22 @@ void readsigs(void) {
 void
 execsigs() {
   // Set the "destination muxes"; destination is always a reg (?)
+  // one exception? if more then integrate into switch statement below
+  if(opc1==4){
+    update_regsel(REGWS, PC);
+  } else {
   update_regsel(REGWS, tgt);
-
+  }
+  //printf("opc1: %d ", opc1);
   switch(opc1) {
   case 0:
     update_bussel(OP1S, MDRout);
+    update_csig(REG_LOAD, HI);
+    break;
+  case 4:
+    update_bussel(OP0S, MDRout);
+    update_bussel(OP1S, REGR0);
+    update_regsel(REGR0S, PC);
     update_csig(REG_LOAD, HI);
     break;
   case 5:
@@ -313,8 +347,9 @@ execsigs() {
     update_csig(REG_LOAD, HI);
     break;
   case 6:
+  //printf("opc2: %d", opc2);
     switch(opc2) {
-    case 0 ... 5:
+    case 0 ... 3:
       if(ir==1) {
         // arg1 is an imm
         update_bussel(OP0S, MDRout);
@@ -325,6 +360,39 @@ execsigs() {
       update_bussel(OP1S, REGR1);
       update_regsel(REGR1S, arg1);
       update_csig(REG_LOAD, HI);
+      break;
+    case 4:
+      if(ir==1) {
+        // arg1 is an imm
+        update_bussel(OP0S, MDRout);
+      } else {
+        update_bussel(OP0S, REGR0);
+        update_regsel(REGR0S, arg0);
+      }
+      update_bussel(OP1S, REGR1);
+      update_regsel(REGR1S, arg1);
+      update_bussel(ALUS, 1);
+      update_bussel(COND, tgt);
+      chkskip();
+      //if(bsig[ALUout]==0) {
+      //  update_csig(SKIP, HI);
+      //}
+      break;
+
+    case 5:
+      if(ir==1) {
+        // arg1 is an imm
+        update_bussel(OP0S, MDRout);
+      } else {
+        update_bussel(OP0S, REGR0);
+        update_regsel(REGR0S, arg0);
+      }
+      update_bussel(OP1S, REGR1);
+      update_regsel(REGR1S, arg1);
+      update_csig(REG_LOAD, HI);
+      if(bsig[ALUout]==0) {
+        update_csig(SKIP, HI);
+      }
       break;
     }
     break;
@@ -360,6 +428,10 @@ latch(enum phase clk_phase) {
     if(csig[MAR_LOAD]==HI) {
       sysreg[MAR] = bsig[ALUout];
       printf("MAR <- %x\n", sysreg[MAR]);
+    }
+    if(csig[SKIP]==HI) {
+      regfile[PC]++;
+      printf("PC++");
     }
   }
 
@@ -426,19 +498,40 @@ void
 ALU(void) {
   ushort result;
 
-  switch(ALUfunc) {
+  switch(bussel[ALUS]) {
   case 0:
     result = bsig[OP0] + bsig[OP1];
+    break;
+  case 1:
+    result = bsig[OP0] - bsig[OP1];
     break;
   }
   update_bsig(ALUout, &result);
 }
-//
-// ushort
-// addradder(ushort x, ushort y) {
-//   return x + y;
-// }
-//
+
+void chkskip(void){
+// condS  cond  0  neg  pos
+// SLTEQ    3   1  1    0
+// EQ       0   1  0    0
+// SGTEQ    5   1  0    1
+// NEQ      1   0  1    1
+// SLT      2   0  1    0
+// SGT      4   0  0    1
+  // if its 0
+  if(bsig[ALUout] == 0 && bussel[COND] == 3) { update_csig(SKIP, HI); }
+  if(bsig[ALUout] == 0 && bussel[COND] == 0) { update_csig(SKIP, HI); }
+  if(bsig[ALUout] == 0 && bussel[COND] == 5) { update_csig(SKIP, HI); }
+  // if its neg - in HDL need to check most significant bit[0]
+  if(bsig[ALUout] < 0 && bussel[COND] == 3) { update_csig(SKIP, HI); }
+  if(bsig[ALUout] < 0 && bussel[COND] == 1) { update_csig(SKIP, HI);}
+  if(bsig[ALUout] < 0 && bussel[COND] == 2) { update_csig(SKIP, HI);}
+  // if its pos - in HDL need to check most significant bit[0]
+  if(bsig[ALUout] > 0 && bussel[COND] == 5) { update_csig(SKIP, HI); }
+  if(bsig[ALUout] > 0 && bussel[COND] == 1) { update_csig(SKIP, HI); }
+  if(bsig[ALUout] > 0 && bussel[COND] == 4) { update_csig(SKIP, HI);}
+}
+
+
 void update_csig(enum csig signame, enum signalstate state) {
   if (csig[signame] != state) {
     sigupd = 1;
@@ -462,9 +555,19 @@ void update_bussel(enum bussel signame, ushort value) {
   //printf("signame: %d", signame);
   if (bussel[signame] != value) {
     sigupd = 1;
-    printf("%s(%s) ", BUSSEL_STR[signame], BSIG_STR[value]);
+    switch(signame){
+    case 0 ... 2:
+      printf("%s(%s) ", BUSSEL_STR[signame], BSIG_STR[value]);
+      break;
+    case 3:
+      printf("%s(%s) ", BUSSEL_STR[signame], ALUFUNC_STR[value]);
+      break;
+    case 4:
+      printf("%s(%s) ", BUSSEL_STR[signame], COND_STR[value]);
+      break;
     //if (signame == AIN)
       //printf("v: %x", *value);
+    }
   }
   bussel[signame] = value;
 }
@@ -490,6 +593,11 @@ ushort readram(ushort addr) {
 //
 //
 void writeregfile(void) {
+  if(regsel[REGWS] == REG0) {
+    printf("\nwriteregfile: error trying to write to REG0!!\n");
+    dump();
+    exit(1);
+  }
   regfile[regsel[REGWS]] = bsig[ALUout];
   printf("%s <- %x\n", REGFILE_STR[regsel[REGWS]], bsig[ALUout]);
 }
@@ -499,7 +607,6 @@ clearsig(){
   memset(csig, 0, sizeof(csig));
   memset(bussel, 0, sizeof(bussel));
   memset(regsel, 0, sizeof(regsel));
-  ALUfunc = 0;
 }
 //
 // void setconsole(enum clkstate phase, int vflag) {

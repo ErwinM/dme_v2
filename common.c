@@ -83,41 +83,39 @@ int bin7_to_dec(char *bin) {
   return result;
 }
 
-int bin2dec(char *bin) {
-  int result;
-  int len, i, c;
-  char *p;
+int bin2dec(char *bin, int size) {
+  int result, i, c;
 
   result=0;
   i=0;
-  len = strlen(bin) - 1;
-  for(c=len;c>=0;c--) {
+  for(c=size-1;c>=0;c--) {
     if(bin[c] == '1') {
       result +=pow(2,i);
     }
     i++;
   }
-  printf("bin2dec: %s(%d)\n", bin, result);
+  //printf("bin2dec: %s(%d)\n", bin, result);
   return result;
 }
 
-int sbin2dec(char *bin) {
-  int result;
-  int len, i, c;
-  char *p;
+int sbin2dec(char *bin, int size) {
+  int result, i, c;
 
   result=0;
   i=0;
-  len = strlen(bin) - 1;
-  for(c=len;c>=1;c--) {
+  for(c=size-1;c>=0;c--) {
     if(bin[c] == '1') {
       result +=pow(2,i);
     }
     i++;
   }
-  if(bin[0]=='1')
-    result = -result;
-  printf("bin2dec: %s(%d)\n", bin, result);
+
+  if(bin[0]=='1') {
+    // negative number
+    //printf("NEG!");
+    result = -(pow(2,size)-result);
+  }
+  //printf("bin2dec: %s(%d)\n", bin, result);
   return result;
 }
 

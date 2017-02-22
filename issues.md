@@ -1,0 +1,1 @@
+* R0 gets loaded with first instruction?

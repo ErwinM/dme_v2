@@ -5,6 +5,9 @@
 
 enum signalstate { ZZ, RE, HI, FE, LO };
 
+const short immtable[8] = { 1,2,4,8,-8,-4,-2,-1 };
+static const char *COND_STR[] = { "EQ", "NEQ", "SLT", "SLTEQ", "SGT", "SGTEQ", "LT", "LTEQ" };
+static const char *ALUFUNC_STR[] = { "ADD", "SUB" };
 
 #define PHASE \
       X(clk_FE) \
@@ -50,7 +53,9 @@ enum signalstate { ZZ, RE, HI, FE, LO };
 #define BUSSEL \
       X(OP0S) \
       X(OP1S) \
-      X(MDRS)
+      X(MDRS) \
+      X(ALUS) \
+      X(COND)
 
 #define BSIGS \
       X(REGR0  ) \
@@ -61,8 +66,10 @@ enum signalstate { ZZ, RE, HI, FE, LO };
       X(MDRin   ) \
       X(MARin   ) \
       X(ALUout   ) \
-         X(RAM) \
+      X(RAM) \
       X(MDRout   )  // programming crutch always equals SYSREG[MDR]
+
+
 
 enum flags { ZR, NG};
 static const char *FLAGS_STRING[] = { "ZR", "NG"};
