@@ -136,14 +136,15 @@ init(void) {
   //ram[4]=0x284;
   //ram[5]=0xE451;
 
-  ram[0] = 0xa081;
-  ram[1] = 0xa052;
-  ram[2] = 0xd054;
-  ram[3] = 0x8002;
-  ram[4] = 0xc00b;
-  ram[5] = 0x0;
-  ram[6] = 0xc013;
-  ram[7] = 0x0;
+  ram[0] = 0xa031;
+  ram[2] = 0xa052;
+  ram[4] = 0xd054;
+  ram[6] = 0x8002;
+  ram[8] = 0xc00b;
+  ram[10] = 0x0;
+  ram[12] = 0xc013;
+  ram[14] = 0x0;
+
   printf("Init done..\n");
 }
 
@@ -221,6 +222,13 @@ decodesigs() {
   //printf("i/r: %c", ir_b);
   ir = ir_b - '0';
 
+
+  // byte encoding
+  // if(instr_b[15]=='0'){
+//     // aligned (even number)
+//
+//
+//   }
 
   // IRimm MUX - which bits from IR should feed IRimm
   switch(opc1) {
@@ -420,7 +428,7 @@ latch(enum phase clk_phase) {
   if(clk.icycle == FETCH && clk_phase == clk_RE) {
     sysreg[IR] = readram(sysreg[MAR]);
     printf("IR <- %x\n", readram(sysreg[MAR]));
-    regfile[PC]++; // PC acts as counter
+    regfile[PC]+=2; // PC acts as counter
   }
 
   // FALLING EDGE LATCHES
@@ -430,7 +438,7 @@ latch(enum phase clk_phase) {
       printf("MAR <- %x\n", sysreg[MAR]);
     }
     if(csig[SKIP]==HI) {
-      regfile[PC]++;
+      regfile[PC] +=2;
       printf("PC++");
     }
   }
@@ -582,8 +590,13 @@ void update_regsel(enum regsel signame, ushort value) {
 }
 
 ushort readram(ushort addr) {
-  //printf("Reading RAM at address: %x\n", addr);
-  return ram[addr];
+  int b1, b2, woord;
+
+  woord = ram[addr];
+  // b2 = ram[addr+1];
+ //  woord = (b1 << 8 ) | b2;
+  //printf("b1: %x, b2: %x, readram: %x", b1, b2,woord);
+  return woord;
 }
 //
 // void writeram() {

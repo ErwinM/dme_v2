@@ -25,8 +25,15 @@ int sbin2dec(char *bin, int size) {
   return result;
 }
 
+int mergehex(int a, int b) {
+  int temp, result;
+
+  result = (a << 8) | b;
+  return result;
+}
+
 int main() {
   const char *bin = "0111";
 
-  printf("Result: %d\n", sbin2dec(bin,4));
+  printf("Result: %x\n", mergehex(0xa0,0x32));
 }
